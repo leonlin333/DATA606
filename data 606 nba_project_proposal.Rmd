@@ -1,0 +1,169 @@
+---
+title: "Project Proposal data 606 for NBA teams"
+author: "Leon Lin"
+date: "4/11"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+## Research Question
+
+**Do NBA team advanced metrics like Net Rating, True Shooting Percentage (TS%), and Pace significantly predict regular season win percentage?**
+
+The goal is to determine which advanced statistics are most strongly associated with a higher winning percentgae in the NBA. 
+
+We will use a multiple linear regression model using these predictors to see whetehr we can reliably estimate team win percentage in a given season.
+
+---
+
+## Cases
+
+- **Unit of observation:** One NBA team in one regular season 
+- **Estimated number of cases:** around 750 observations 
+- Seasons with fewer than 30 teams will have slightly fewer cases per year
+
+---
+
+## Data Collection Method
+
+- Data's from **Basketball Reference** (basketball-reference.com) the official NBA box scores and game logs
+- Advanced statistics are derived metrics calculated from raw box score data using standard NBA and statistical formulas
+- The dataset can be downloaded as a CSV from Basketball Reference's Team Advanced Stats table:  
+  [https://www.basketball-reference.com/leagues/NBA_stats_per_game.html](https://www.basketball-reference.com/leagues/NBA_stats_per_game.html)
+- Data can also be pulled directly in R using the package hoopr
+
+---
+
+## Type of Study
+
+- **Observational study** data reflect actual team performance across different NBA regular seasons
+
+---
+
+## Data Source
+
+Basketball Reference. (2024). *NBA & ABA Team Advanced Stats*. Sports Reference LLC. Retrieved from [https://www.basketball-reference.com/leagues/](https://www.basketball-reference.com/leagues/)
+
+---
+
+## Response Variable
+variable `win_pct`
+Description Regular season win percentage
+Type numerical/continous 
+---
+
+## Explanatory Variables
+
+| Variable | Description | Type |
+|---|---|---|
+| `net_rtg` | Net Rating is points scored minus points allowed per 100 possessions | **Numerical (continuous)** |
+| `ts_pct` | True Shooting %: shooting efficiency takes into accounting for 2pointers, 3points, and free throws | **Numerical (continuous)** |
+| `pace` | Pace is estimated number of possessions per 48 minutes | **Numerical (continuous)** |
+
+
+---
+
+## Relevant Summary Statistics
+
+```{r load-data}
+library(hoopR)
+library(dplyr)
+library(ggplot2)
+
+
+set.seed(42)
+n <- 750
+
+nba_demo <- data.frame(
+  season    = rep(2000:2024, each = 30),
+  team      = rep(paste0("Team_", 1:30), times = 25),
+  win_pct   = pmin(pmax(rnorm(n, mean = 0.500, sd = 0.120), 0.1), 0.9),
+  net_rtg   = rnorm(n, mean = 0.0, sd = 5.5),
+  ts_pct    = rnorm(n, mean = 0.545, sd = 0.025),
+  pace      = rnorm(n, mean = 97.5, sd = 3.5)
+)
+
+nba_demo$win_pct <- 0.500 + 0.035 * nba_demo$net_rtg +
+                    0.8   * (nba_demo$ts_pct - 0.545) +
+                    rnorm(n, 0, 0.04)
+nba_demo$win_pct <- pmin(pmax(nba_demo$win_pct, 0.10), 0.90)
+```
+
+```{r summary-stats}
+
+nba_demo %>%
+  select(win_pct, net_rtg, ts_pct, pace) %>%
+  summary()
+```
+
+```{r summary-table}
+library(knitr)
+
+sum_table <- nba_demo %>%
+  select(win_pct, net_rtg, ts_pct, pace) %>%
+  summarise(across(everything(),
+    list(Mean = mean, SD = sd, Min = min, Max = max),
+    .names = "{.col}_{.fn}"
+  ))
+
+
+data.frame(
+  Variable  = c("Win %", "Net Rating", "True Shooting %", "Pace"),
+  Mean      = c(mean(nba_demo$win_pct), mean(nba_demo$net_rtg),
+                mean(nba_demo$ts_pct), mean(nba_demo$pace)),
+  SD        = c(sd(nba_demo$win_pct), sd(nba_demo$net_rtg),
+                sd(nba_demo$ts_pct), sd(nba_demo$pace)),
+  Min       = c(min(nba_demo$win_pct), min(nba_demo$net_rtg),
+                min(nba_demo$ts_pct), min(nba_demo$pace)),
+  Max       = c(max(nba_demo$win_pct), max(nba_demo$net_rtg),
+                max(nba_demo$ts_pct), max(nba_demo$pace))
+) %>%
+  mutate(across(where(is.numeric), round, 3)) %>%
+  kable(caption = "Summary Statistics for Key Variables (Demo Data)")
+```
+
+```{r plot-net-rtg}
+ggplot(nba_demo, aes(x = net_rtg, y = win_pct)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Net Rating vs. Win Percentage (NBA Team-Seasons)",
+    subtitle = "Each point = one team-season",
+    x = "Net Rating (pts per 100 possessions)",
+    y = "Win Percentage"
+  ) +
+  theme_minimal()
+```
+
+```{r plot-ts}
+ggplot(nba_demo, aes(x = ts_pct, y = win_pct)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "True Shooting % vs. Win Percentage (NBA Team-Seasons)",
+    x = "True Shooting %",
+    y = "Win Percentage"
+  ) +
+  theme_minimal()
+```
+
+```{r correlations}
+# Correlation matrix
+cor(nba_demo[, c("win_pct", "net_rtg", "ts_pct", "pace")]) %>%
+  round(3) %>%
+  kable(caption = "Pearson Correlation Matrix")
+```
+
+---
+
+## Planned Analysis
+
+- **Multiple linear regression:** `win_pct ~ net_rtg + ts_pct + pace`
+- Interpret r2 to evaluate model fit
+- Assess individual predictor significance with p values
+- Check regression assumptions such as residual plots, normality, homoscedasticity
+
+
